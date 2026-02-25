@@ -85,7 +85,7 @@ export default function SchedulePage() {
     <div className="min-h-screen bg-black">
       <Navigation employee={employee} />
 
-      <main className="max-w-5xl mx-auto">
+      <main className="max-w-7xl mx-auto">
         {/* Week Navigator */}
         <WeekNavigator
           currentDate={currentDate}

@@ -56,7 +56,7 @@ export default function AdminPage() {
         pendingCount={pendingCount}
       />
 
-      <main className="max-w-5xl mx-auto">
+      <main className="max-w-7xl mx-auto">
         {activeTab === "schedule" && (
           <>
             <WeekNavigator

@@ -31,7 +31,7 @@ export function Navigation({
 
   return (
     <nav className="sticky top-0 z-50 glass border-b border-white/[0.06] pt-safe">
-      <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+      <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
 
         {/* Left: Logo + Name — bei Admin auf Mobile ausgeblendet, bei Mitarbeiter immer sichtbar */}
         <div className={clsx("flex items-center gap-3 shrink-0", isAdmin && "hidden md:flex")}>
