@@ -33,8 +33,8 @@ export function Navigation({
     <nav className="sticky top-0 z-50 glass border-b border-white/[0.06] pt-safe">
       <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
 
-        {/* Left: Logo + Name — auf Mobile ausgeblendet */}
-        <div className="hidden md:flex items-center gap-3 shrink-0">
+        {/* Left: Logo + Name — bei Admin auf Mobile ausgeblendet, bei Mitarbeiter immer sichtbar */}
+        <div className={clsx("flex items-center gap-3 shrink-0", isAdmin && "hidden md:flex")}>
           <div className="w-8 h-8 rounded-xl bg-accent-blue flex items-center justify-center shrink-0">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="4" width="18" height="18" rx="2" />
