@@ -1,0 +1,10 @@
+INSERT INTO public.employees (name, role, user_id) VALUES
+  ('Maik',    'employee', 'f0262681-68c7-4a62-b24d-3bf74dba6a0c'),
+  ('Timon',   'employee', '648a97c8-476c-4af8-b011-2a72abba94ee'),
+  ('Niklas',  'employee', '723ce8a0-bdef-4f66-b9e6-7dd7ee8ec4fa'),
+  ('Emanuel', 'employee', 'ad813f5f-d83d-477d-9211-b1215f7f94ed'),
+  ('Henning', 'employee', 'a7e1031a-fccc-43ab-836f-7ccde5dd2c48'),
+  ('Laurens', 'employee', '219bd1bd-97be-47d2-9b61-db3ff5906cfc'),
+  ('Rayene',  'employee', '5aae1a1a-067e-432f-9a96-052551e7315a'),
+  ('Natan',   'employee', 'e5f21b67-5f3b-4c5a-a09d-1564be23eb5e'),
+  ('Mathias', 'admin',    'b4e156fe-816e-4a3d-b75a-18bd6ebd1a41');
