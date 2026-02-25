@@ -8,9 +8,10 @@ import {
   updateSwapRequestStatus,
   upsertSchedule,
   fetchWeekSchedules,
+  fetchSchedulesByDates,
 } from "@/lib/api";
 import { getWeekRange } from "@/lib/week";
-import type { ShiftSwapRequest } from "@/types";
+import type { ShiftSwapRequest, Schedule } from "@/types";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 
@@ -24,6 +25,7 @@ export function SwapRequestsList({
   onScheduleChange,
 }: SwapRequestsListProps) {
   const [requests, setRequests] = useState<ShiftSwapRequest[]>([]);
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
 
@@ -32,6 +34,13 @@ export function SwapRequestsList({
     try {
       const data = await fetchSwapRequests();
       setRequests(data);
+
+      // Schichten für alle betroffenen Daten laden
+      const dates = Array.from(
+        new Set(data.flatMap((r) => [r.from_date, r.to_date]))
+      );
+      const scheds = await fetchSchedulesByDates(dates);
+      setSchedules(scheds);
     } catch {
       // silent
     } finally {
@@ -138,6 +147,7 @@ export function SwapRequestsList({
               <SwapRequestCard
                 key={req.id}
                 request={req}
+                schedules={schedules}
                 onApprove={() => handleApprove(req)}
                 onReject={() => handleReject(req)}
                 processing={processingId === req.id}
@@ -154,39 +164,52 @@ export function SwapRequestsList({
             Verlauf
           </h3>
           <div className="space-y-2">
-            {resolvedRequests.slice(0, 10).map((req) => (
-              <div
-                key={req.id}
-                className="glass rounded-2xl px-4 py-3 flex items-center gap-3"
-              >
+            {resolvedRequests.slice(0, 10).map((req) => {
+              const fromShift = schedules.find(
+                (s) => s.employee_id === req.from_employee_id && s.date === req.from_date
+              );
+              const toShift = schedules.find(
+                (s) => s.employee_id === req.to_employee_id && s.date === req.to_date
+              );
+              return (
                 <div
-                  className={clsx(
-                    "w-2 h-2 rounded-full shrink-0",
-                    req.status === "approved"
-                      ? "bg-accent-green"
-                      : "bg-accent-red"
-                  )}
-                />
-                <div className="flex-1 min-w-0">
-                  <p className="text-white/70 text-sm truncate">
-                    {req.from_employee?.name} ↔ {req.to_employee?.name}
-                  </p>
-                  <p className="text-white/30 text-xs">
-                    {formatDate(req.from_date)} ↔ {formatDate(req.to_date)}
-                  </p>
-                </div>
-                <span
-                  className={clsx(
-                    "text-xs font-semibold px-2 py-0.5 rounded-lg",
-                    req.status === "approved"
-                      ? "bg-accent-green/10 text-green-400"
-                      : "bg-accent-red/10 text-red-400"
-                  )}
+                  key={req.id}
+                  className="glass rounded-2xl px-4 py-3 flex items-center gap-3"
                 >
-                  {req.status === "approved" ? "Genehmigt" : "Abgelehnt"}
-                </span>
-              </div>
-            ))}
+                  <div
+                    className={clsx(
+                      "w-2 h-2 rounded-full shrink-0",
+                      req.status === "approved"
+                        ? "bg-accent-green"
+                        : "bg-accent-red"
+                    )}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white/70 text-sm truncate">
+                      {req.from_employee?.name} ↔ {req.to_employee?.name}
+                    </p>
+                    <p className="text-white/30 text-xs">
+                      {formatDate(req.from_date)} ↔ {formatDate(req.to_date)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <ShiftBadge shift={fromShift?.shift_type ?? null} size="sm" />
+                    <span className="text-white/20 text-xs">↔</span>
+                    <ShiftBadge shift={toShift?.shift_type ?? null} size="sm" />
+                  </div>
+                  <span
+                    className={clsx(
+                      "text-xs font-semibold px-2 py-0.5 rounded-lg shrink-0",
+                      req.status === "approved"
+                        ? "bg-accent-green/10 text-green-400"
+                        : "bg-accent-red/10 text-red-400"
+                    )}
+                  >
+                    {req.status === "approved" ? "Genehmigt" : "Abgelehnt"}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -196,15 +219,24 @@ export function SwapRequestsList({
 
 function SwapRequestCard({
   request,
+  schedules,
   onApprove,
   onReject,
   processing,
 }: {
   request: ShiftSwapRequest;
+  schedules: Schedule[];
   onApprove: () => void;
   onReject: () => void;
   processing: boolean;
 }) {
+  const fromShift = schedules.find(
+    (s) => s.employee_id === request.from_employee_id && s.date === request.from_date
+  );
+  const toShift = schedules.find(
+    (s) => s.employee_id === request.to_employee_id && s.date === request.to_date
+  );
+
   return (
     <div className="glass rounded-3xl p-4 shadow-apple-sm space-y-3">
       {/* Header */}
@@ -232,6 +264,7 @@ function SwapRequestCard({
             </p>
             <p className="text-white/40 text-xs">{formatDate(request.from_date)}</p>
           </div>
+          <ShiftBadge shift={fromShift?.shift_type ?? null} />
         </div>
 
         <div className="flex justify-center text-white/20 text-lg">⇅</div>
@@ -246,6 +279,7 @@ function SwapRequestCard({
             </p>
             <p className="text-white/40 text-xs">{formatDate(request.to_date)}</p>
           </div>
+          <ShiftBadge shift={toShift?.shift_type ?? null} />
         </div>
       </div>
 

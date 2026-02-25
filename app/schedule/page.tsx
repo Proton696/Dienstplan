@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { useSchedule } from "@/hooks/useSchedule";
@@ -9,8 +9,8 @@ import { WeekNavigator } from "@/components/WeekNavigator";
 import { WeeklySchedule } from "@/components/WeeklySchedule";
 import { getWeekDays, nextWeek, prevWeek } from "@/lib/week";
 import { fetchMySwapRequests } from "@/lib/api";
-import type { ShiftSwapRequest } from "@/types";
-import { clsx } from "clsx";
+import { format } from "date-fns";
+import type { ShiftSwapRequest, ScheduleRow } from "@/types";
 
 export default function SchedulePage() {
   const router = useRouter();
@@ -33,6 +33,45 @@ export default function SchedulePage() {
     if (!employee) return;
     fetchMySwapRequests(employee.id).then(setMyRequests).catch(() => {});
   }, [employee]);
+
+  // Sortierung: eigene Zeile zuerst, dann nach übereinstimmender Schicht pro Tag
+  const sortedRows = useMemo(() => {
+    if (!employee || rows.length === 0) return rows;
+
+    const todayStr = format(new Date(), "yyyy-MM-dd");
+
+    // Meine Schicht heute ermitteln
+    const myTodayShift = schedules.find(
+      (s) => s.employee_id === employee.id && s.date === todayStr
+    )?.shift_type ?? null;
+
+    return [...rows].sort((a, b) => {
+      const aIsMe = a.employee.id === employee.id;
+      const bIsMe = b.employee.id === employee.id;
+
+      // Eigene Zeile immer zuerst
+      if (aIsMe) return -1;
+      if (bIsMe) return 1;
+
+      // Wenn heute eine Schicht vorhanden ist: gleiche Schicht bevorzugen
+      if (myTodayShift) {
+        const aShift = schedules.find(
+          (s) => s.employee_id === a.employee.id && s.date === todayStr
+        )?.shift_type ?? null;
+        const bShift = schedules.find(
+          (s) => s.employee_id === b.employee.id && s.date === todayStr
+        )?.shift_type ?? null;
+
+        const aMatches = aShift === myTodayShift ? -1 : 0;
+        const bMatches = bShift === myTodayShift ? -1 : 0;
+
+        if (aMatches !== bMatches) return aMatches - bMatches;
+      }
+
+      // Alphabetisch als Fallback
+      return a.employee.name.localeCompare(b.employee.name, "de");
+    });
+  }, [rows, schedules, employee]);
 
   if (authLoading || !user) {
     return <LoadingScreen />;
@@ -79,7 +118,7 @@ export default function SchedulePage() {
           <ScheduleSkeleton />
         ) : (
           <WeeklySchedule
-            rows={rows}
+            rows={sortedRows}
             weekDays={weekDays}
             currentEmployee={employee}
             schedules={schedules}

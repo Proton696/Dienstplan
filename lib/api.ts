@@ -47,6 +47,19 @@ export async function fetchWeekSchedules(
   return data ?? [];
 }
 
+export async function fetchSchedulesByDates(
+  dates: string[]
+): Promise<Schedule[]> {
+  if (dates.length === 0) return [];
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from("schedules")
+    .select("*")
+    .in("date", dates);
+  if (error) throw error;
+  return data ?? [];
+}
+
 export async function upsertSchedule(
   employeeId: string,
   date: string,

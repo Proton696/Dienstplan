@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { useSchedule } from "@/hooks/useSchedule";
@@ -9,6 +9,7 @@ import { WeekNavigator } from "@/components/WeekNavigator";
 import { AdminShiftEditor } from "@/components/AdminShiftEditor";
 import { SwapRequestsList } from "@/components/SwapRequestsList";
 import { getWeekDays, nextWeek, prevWeek } from "@/lib/week";
+import { fetchSwapRequests } from "@/lib/api";
 import { clsx } from "clsx";
 
 type Tab = "schedule" | "swaps";
@@ -21,6 +22,20 @@ export default function AdminPage() {
 
   const { rows, schedules, loading, error, refresh } = useSchedule(currentDate);
   const weekDays = getWeekDays(currentDate);
+  const [pendingCount, setPendingCount] = useState(0);
+
+  const loadPendingCount = useCallback(async () => {
+    try {
+      const all = await fetchSwapRequests();
+      setPendingCount(all.filter((r) => r.status === "pending").length);
+    } catch {
+      // silent
+    }
+  }, []);
+
+  useEffect(() => {
+    loadPendingCount();
+  }, [loadPendingCount]);
 
   // Auth guard
   useEffect(() => {
@@ -58,6 +73,7 @@ export default function AdminPage() {
               active={activeTab === "swaps"}
               onClick={() => setActiveTab("swaps")}
               label="Tauschanfragen"
+              badge={pendingCount}
               icon={
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                   <path d="M7 16V4m0 0L3 8m4-4l4 4" />
@@ -100,7 +116,10 @@ export default function AdminPage() {
           <div className="pt-4">
             <SwapRequestsList
               currentDate={currentDate}
-              onScheduleChange={refresh}
+              onScheduleChange={() => {
+                refresh();
+                loadPendingCount();
+              }}
             />
           </div>
         )}
@@ -114,11 +133,13 @@ function TabButton({
   onClick,
   label,
   icon,
+  badge,
 }: {
   active: boolean;
   onClick: () => void;
   label: string;
   icon: React.ReactNode;
+  badge?: number;
 }) {
   return (
     <button
@@ -132,6 +153,11 @@ function TabButton({
     >
       {icon}
       {label}
+      {badge != null && badge > 0 && (
+        <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-accent-orange text-black text-[10px] font-bold leading-none">
+          {badge}
+        </span>
+      )}
     </button>
   );
 }

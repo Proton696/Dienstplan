@@ -53,7 +53,7 @@ export function AdminShiftEditor({
     }
   }
 
-  const nonAdminRows = rows.filter((r) => r.employee.role !== "admin");
+  const nonAdminRows = rows;
 
   return (
     <>
