@@ -10,7 +10,6 @@ import { AdminShiftEditor } from "@/components/AdminShiftEditor";
 import { SwapRequestsList } from "@/components/SwapRequestsList";
 import { getWeekDays, nextWeek, prevWeek } from "@/lib/week";
 import { fetchSwapRequests } from "@/lib/api";
-import { clsx } from "clsx";
 
 type Tab = "schedule" | "swaps";
 
@@ -19,10 +18,10 @@ export default function AdminPage() {
   const { user, employee, isAdmin, loading: authLoading } = useAuth();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [activeTab, setActiveTab] = useState<Tab>("schedule");
+  const [pendingCount, setPendingCount] = useState(0);
 
   const { rows, schedules, loading, error, refresh } = useSchedule(currentDate);
   const weekDays = getWeekDays(currentDate);
-  const [pendingCount, setPendingCount] = useState(0);
 
   const loadPendingCount = useCallback(async () => {
     try {
@@ -50,40 +49,14 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-black">
-      <Navigation employee={employee} />
+      <Navigation
+        employee={employee}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        pendingCount={pendingCount}
+      />
 
       <main className="max-w-5xl mx-auto">
-        {/* Tab Bar */}
-        <div className="px-4 pt-4 pb-2">
-          <div className="inline-flex p-1 bg-white/[0.06] rounded-2xl">
-            <TabButton
-              active={activeTab === "schedule"}
-              onClick={() => setActiveTab("schedule")}
-              label="Dienstplan"
-              icon={
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                  <rect x="3" y="4" width="18" height="18" rx="2" />
-                  <line x1="3" y1="10" x2="21" y2="10" />
-                  <line x1="8" y1="2" x2="8" y2="6" />
-                  <line x1="16" y1="2" x2="16" y2="6" />
-                </svg>
-              }
-            />
-            <TabButton
-              active={activeTab === "swaps"}
-              onClick={() => setActiveTab("swaps")}
-              label="Tauschanfragen"
-              badge={pendingCount}
-              icon={
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                  <path d="M7 16V4m0 0L3 8m4-4l4 4" />
-                  <path d="M17 8v12m0 0l4-4m-4 4l-4-4" />
-                </svg>
-              }
-            />
-          </div>
-        </div>
-
         {activeTab === "schedule" && (
           <>
             <WeekNavigator
@@ -92,13 +65,11 @@ export default function AdminPage() {
               onNext={() => setCurrentDate(nextWeek(currentDate))}
               onToday={() => setCurrentDate(new Date())}
             />
-
             {error && (
               <div className="mx-4 mb-4 bg-accent-red/10 border border-accent-red/20 rounded-2xl px-4 py-3">
                 <p className="text-sm text-red-400">{error}</p>
               </div>
             )}
-
             {loading ? (
               <ScheduleSkeleton />
             ) : (
@@ -125,40 +96,6 @@ export default function AdminPage() {
         )}
       </main>
     </div>
-  );
-}
-
-function TabButton({
-  active,
-  onClick,
-  label,
-  icon,
-  badge,
-}: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-  icon: React.ReactNode;
-  badge?: number;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={clsx(
-        "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all",
-        active
-          ? "bg-white/[0.1] text-white shadow-apple-sm"
-          : "text-white/40 hover:text-white/60"
-      )}
-    >
-      {icon}
-      {label}
-      {badge != null && badge > 0 && (
-        <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-accent-orange text-black text-[10px] font-bold leading-none">
-          {badge}
-        </span>
-      )}
-    </button>
   );
 }
 

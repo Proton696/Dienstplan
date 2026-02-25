@@ -21,12 +21,14 @@ export default function SchedulePage() {
   const { rows, schedules, loading, error, refresh } = useSchedule(currentDate);
   const weekDays = getWeekDays(currentDate);
 
-  // Auth guard
+  // Auth guard — Admin direkt zum Admin-Dashboard
   useEffect(() => {
     if (!authLoading && !user) {
       router.replace("/login");
+    } else if (!authLoading && employee?.role === "admin") {
+      router.replace("/admin");
     }
-  }, [authLoading, user, router]);
+  }, [authLoading, user, employee, router]);
 
   // Load own swap requests
   useEffect(() => {
