@@ -1,9 +1,10 @@
-import { getSupabaseClient } from "./supabase";
+import { getSupabaseClient, createSignupClient } from "./supabase";
 import type {
   Employee,
   Schedule,
   ShiftSwapRequest,
   ShiftType,
+  EmployeeRole,
 } from "@/types";
 
 // ─── Employees ────────────────────────────────────────────────────────────────
@@ -13,6 +14,19 @@ export async function fetchEmployees(): Promise<Employee[]> {
   const { data, error } = await supabase
     .from("employees")
     .select("*")
+    .order("name");
+  if (error) throw error;
+  return data ?? [];
+}
+
+// Für Login-Dropdown: kein Auth nötig (anon policy)
+export async function fetchEmployeesPublic(): Promise<
+  Pick<Employee, "id" | "name" | "email">[]
+> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from("employees")
+    .select("id, name, email")
     .order("name");
   if (error) throw error;
   return data ?? [];
@@ -29,6 +43,40 @@ export async function fetchEmployeeByUserId(
     .single();
   if (error) return null;
   return data;
+}
+
+export async function createEmployee(params: {
+  name: string;
+  email: string;
+  password: string;
+  role: EmployeeRole;
+}): Promise<void> {
+  // Separater Client ohne Session-Persistenz, damit Admin-Session erhalten bleibt
+  const signupClient = createSignupClient();
+  const { data: authData, error: authError } = await signupClient.auth.signUp({
+    email: params.email,
+    password: params.password,
+  });
+  if (authError) throw authError;
+  if (!authData.user) throw new Error("Benutzer konnte nicht erstellt werden.");
+
+  const supabase = getSupabaseClient();
+  const { error: dbError } = await supabase.from("employees").insert({
+    name: params.name,
+    email: params.email,
+    role: params.role,
+    user_id: authData.user.id,
+  });
+  if (dbError) throw dbError;
+}
+
+export async function deleteEmployee(employeeId: string): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from("employees")
+    .delete()
+    .eq("id", employeeId);
+  if (error) throw error;
 }
 
 // ─── Schedules ────────────────────────────────────────────────────────────────

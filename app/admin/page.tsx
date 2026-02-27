@@ -8,10 +8,12 @@ import { Navigation } from "@/components/Navigation";
 import { WeekNavigator } from "@/components/WeekNavigator";
 import { AdminShiftEditor } from "@/components/AdminShiftEditor";
 import { SwapRequestsList } from "@/components/SwapRequestsList";
+import { ScheduleValidation } from "@/components/ScheduleValidation";
+import { AddEmployeeForm } from "@/components/AddEmployeeForm";
 import { getWeekDays, nextWeek, prevWeek } from "@/lib/week";
 import { fetchSwapRequests } from "@/lib/api";
 
-type Tab = "schedule" | "swaps";
+type Tab = "schedule" | "swaps" | "employees";
 
 export default function AdminPage() {
   const router = useRouter();
@@ -52,7 +54,7 @@ export default function AdminPage() {
       <Navigation
         employee={employee}
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={(tab) => setActiveTab(tab as Tab)}
         pendingCount={pendingCount}
       />
 
@@ -69,6 +71,13 @@ export default function AdminPage() {
               <div className="mx-4 mb-4 bg-accent-red/10 border border-accent-red/20 rounded-2xl px-4 py-3">
                 <p className="text-sm text-red-400">{error}</p>
               </div>
+            )}
+            {!loading && (
+              <ScheduleValidation
+                employees={rows.map((r) => r.employee)}
+                schedules={schedules}
+                weekDays={weekDays}
+              />
             )}
             {loading ? (
               <ScheduleSkeleton />
@@ -92,6 +101,12 @@ export default function AdminPage() {
                 loadPendingCount();
               }}
             />
+          </div>
+        )}
+
+        {activeTab === "employees" && (
+          <div className="pt-4 px-4 pb-8">
+            <AddEmployeeForm onSuccess={refresh} />
           </div>
         )}
       </main>

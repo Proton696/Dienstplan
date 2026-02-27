@@ -27,7 +27,7 @@ export function WeeklySchedule({
     shiftId: string;
   } | null>(null);
 
-  const isEmployee = currentEmployee?.role === "employee";
+  const isEmployee = currentEmployee?.role === "assistent" || currentEmployee?.role === "händler";
 
   function getScheduleForEmployee(
     employeeId: string,
@@ -198,7 +198,7 @@ function MobileEmployeeCard({
   onSwapClick: (date: string, schedule: Schedule | null) => void;
 }) {
   const isMe = row.employee.id === currentEmployee?.id;
-  const isEmployee = currentEmployee?.role === "employee";
+  const isEmployee = currentEmployee?.role === "assistent" || currentEmployee?.role === "händler";
 
   function getSchedule(dateString: string): Schedule | null {
     return (

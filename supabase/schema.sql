@@ -1,5 +1,5 @@
 -- ============================================================
--- Dienstplan – Supabase Schema
+-- Dienstplan – Supabase Schema (v2)
 -- Führe dieses Script im Supabase SQL Editor aus
 -- ============================================================
 
@@ -7,7 +7,7 @@
 create extension if not exists "uuid-ossp";
 
 -- ─── Enums ────────────────────────────────────────────────────────────────────
-create type employee_role as enum ('employee', 'admin');
+create type employee_role as enum ('assistent', 'händler', 'admin');
 create type shift_type as enum ('frei', 'HO', 'Früh', 'Spät', 'Urlaub', 'MD');
 create type swap_status as enum ('pending', 'approved', 'rejected');
 
@@ -15,14 +15,16 @@ create type swap_status as enum ('pending', 'approved', 'rejected');
 
 -- employees
 create table if not exists public.employees (
-  id        uuid primary key default uuid_generate_v4(),
-  name      text not null,
-  role      employee_role not null default 'employee',
-  user_id   uuid references auth.users(id) on delete cascade,
-  created_at timestamptz default now()
+  id          uuid primary key default uuid_generate_v4(),
+  name        text not null,
+  role        employee_role not null default 'assistent',
+  email       text not null,
+  user_id     uuid references auth.users(id) on delete cascade,
+  created_at  timestamptz default now()
 );
 
-create unique index if not exists employees_user_id_idx on public.employees(user_id);
+create unique index if not exists employees_user_id_idx  on public.employees(user_id);
+create unique index if not exists employees_email_idx    on public.employees(email);
 
 -- schedules
 create table if not exists public.schedules (
@@ -35,7 +37,7 @@ create table if not exists public.schedules (
   constraint schedules_employee_date_unique unique (employee_id, date)
 );
 
-create index if not exists schedules_date_idx on public.schedules(date);
+create index if not exists schedules_date_idx        on public.schedules(date);
 create index if not exists schedules_employee_id_idx on public.schedules(employee_id);
 
 -- shift_swap_requests
@@ -44,15 +46,15 @@ create table if not exists public.shift_swap_requests (
   from_employee_id  uuid not null references public.employees(id) on delete cascade,
   to_employee_id    uuid not null references public.employees(id) on delete cascade,
   from_date         date not null,
-  to_date           date not null,
+  to_date           date not null,  -- gleich wie from_date (gleicher Tag)
   status            swap_status not null default 'pending',
   created_at        timestamptz default now(),
   updated_at        timestamptz default now()
 );
 
 create index if not exists swap_requests_from_emp_idx on public.shift_swap_requests(from_employee_id);
-create index if not exists swap_requests_to_emp_idx on public.shift_swap_requests(to_employee_id);
-create index if not exists swap_requests_status_idx on public.shift_swap_requests(status);
+create index if not exists swap_requests_to_emp_idx   on public.shift_swap_requests(to_employee_id);
+create index if not exists swap_requests_status_idx   on public.shift_swap_requests(status);
 
 -- ─── Updated_at trigger ───────────────────────────────────────────────────────
 create or replace function public.set_updated_at()
@@ -72,18 +74,17 @@ create trigger swap_requests_updated_at
   for each row execute function public.set_updated_at();
 
 -- ─── Row Level Security ───────────────────────────────────────────────────────
-
-alter table public.employees enable row level security;
-alter table public.schedules enable row level security;
+alter table public.employees          enable row level security;
+alter table public.schedules          enable row level security;
 alter table public.shift_swap_requests enable row level security;
 
--- Helper function: get current employee's role
+-- Helper: aktuelle Mitarbeiter-Rolle
 create or replace function public.current_employee_role()
 returns employee_role language sql security definer stable as $$
   select role from public.employees where user_id = auth.uid() limit 1;
 $$;
 
--- Helper function: get current employee's id
+-- Helper: aktuelle Mitarbeiter-ID
 create or replace function public.current_employee_id()
 returns uuid language sql security definer stable as $$
   select id from public.employees where user_id = auth.uid() limit 1;
@@ -91,97 +92,93 @@ $$;
 
 -- ─── employees RLS ────────────────────────────────────────────────────────────
 
--- All authenticated users can read all employees
-create policy "employees: authenticated users can read"
+-- Anon darf lesen (für Login-Dropdown: Name + Email)
+create policy "employees: anon can read"
+  on public.employees for select
+  to anon
+  using (true);
+
+-- Alle authentifizierten User dürfen lesen
+create policy "employees: authenticated can read"
   on public.employees for select
   to authenticated
   using (true);
 
--- Only admins can insert/update/delete
-create policy "employees: admins can insert"
+-- Nur Admin darf schreiben
+create policy "employees: admin can insert"
   on public.employees for insert
   to authenticated
   with check (public.current_employee_role() = 'admin');
 
-create policy "employees: admins can update"
+create policy "employees: admin can update"
   on public.employees for update
   to authenticated
   using (public.current_employee_role() = 'admin');
 
-create policy "employees: admins can delete"
+create policy "employees: admin can delete"
   on public.employees for delete
   to authenticated
   using (public.current_employee_role() = 'admin');
 
 -- ─── schedules RLS ────────────────────────────────────────────────────────────
 
--- All authenticated users can read all schedules
-create policy "schedules: authenticated users can read"
+create policy "schedules: authenticated can read"
   on public.schedules for select
   to authenticated
   using (true);
 
--- Only admins can insert schedules
-create policy "schedules: admins can insert"
+create policy "schedules: admin can insert"
   on public.schedules for insert
   to authenticated
   with check (public.current_employee_role() = 'admin');
 
--- Only admins can update schedules
-create policy "schedules: admins can update"
+create policy "schedules: admin can update"
   on public.schedules for update
   to authenticated
   using (public.current_employee_role() = 'admin');
 
--- Only admins can delete schedules
-create policy "schedules: admins can delete"
+create policy "schedules: admin can delete"
   on public.schedules for delete
   to authenticated
   using (public.current_employee_role() = 'admin');
 
 -- ─── shift_swap_requests RLS ──────────────────────────────────────────────────
 
--- Employees can read their own swap requests; admins can read all
-create policy "swap_requests: employees read own, admins read all"
+create policy "swap_requests: own + admin can read"
   on public.shift_swap_requests for select
   to authenticated
   using (
     public.current_employee_role() = 'admin'
     or from_employee_id = public.current_employee_id()
-    or to_employee_id = public.current_employee_id()
+    or to_employee_id   = public.current_employee_id()
   );
 
--- Authenticated employees can create swap requests (for themselves)
 create policy "swap_requests: employees can create"
   on public.shift_swap_requests for insert
   to authenticated
   with check (from_employee_id = public.current_employee_id());
 
--- Only admins can update (approve/reject) swap requests
-create policy "swap_requests: admins can update"
+create policy "swap_requests: admin can update"
   on public.shift_swap_requests for update
   to authenticated
   using (public.current_employee_role() = 'admin');
 
--- Only admins can delete
-create policy "swap_requests: admins can delete"
+create policy "swap_requests: admin can delete"
   on public.shift_swap_requests for delete
   to authenticated
   using (public.current_employee_role() = 'admin');
 
--- ─── Seed Data ────────────────────────────────────────────────────────────────
--- ACHTUNG: Führe diesen Teil NACH dem Erstellen der Auth-User aus!
--- Ersetze die user_id UUIDs mit den echten IDs aus deinem Supabase Auth-Dashboard.
-
+-- ─── Seed ─────────────────────────────────────────────────────────────────────
+-- ACHTUNG: Erst Auth-User anlegen, dann user_id hier eintragen.
 /*
-insert into public.employees (name, role, user_id) values
-  ('Maik',    'employee', 'REPLACE_WITH_MAIK_USER_ID'),
-  ('Timon',   'employee', 'REPLACE_WITH_TIMON_USER_ID'),
-  ('Niklas',  'employee', 'REPLACE_WITH_NIKLAS_USER_ID'),
-  ('Emanuel', 'employee', 'REPLACE_WITH_EMANUEL_USER_ID'),
-  ('Henning', 'employee', 'REPLACE_WITH_HENNING_USER_ID'),
-  ('Laurens', 'employee', 'REPLACE_WITH_LAURENS_USER_ID'),
-  ('Rayene',  'employee', 'REPLACE_WITH_RAYENE_USER_ID'),
-  ('Natan',   'employee', 'REPLACE_WITH_NATAN_USER_ID'),
-  ('Mathias', 'admin',    'REPLACE_WITH_MATHIAS_USER_ID');
+insert into public.employees (name, role, email, user_id) values
+  ('Maik',    'assistent', 'maik@firma.de',    'REPLACE'),
+  ('Timon',   'assistent', 'timon@firma.de',   'REPLACE'),
+  ('Niklas',  'händler',   'niklas@firma.de',  'REPLACE'),
+  ('Emanuel', 'assistent', 'emanuel@firma.de', 'REPLACE'),
+  ('Henning', 'händler',   'henning@firma.de', 'REPLACE'),
+  ('Laurens', 'assistent', 'laurens@firma.de', 'REPLACE'),
+  ('Rayene',  'assistent', 'rayene@firma.de',  'REPLACE'),
+  ('Natan',   'händler',   'natan@firma.de',   'REPLACE'),
+  ('Mathias', 'admin',     'mathias@firma.de', 'REPLACE');
 */

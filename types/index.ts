@@ -1,6 +1,6 @@
 export type ShiftType = "frei" | "HO" | "Früh" | "Spät" | "Urlaub" | "MD";
 
-export type EmployeeRole = "employee" | "admin";
+export type EmployeeRole = "assistent" | "händler" | "admin";
 
 export type SwapStatus = "pending" | "approved" | "rejected";
 
@@ -9,6 +9,16 @@ export interface Employee {
   name: string;
   role: EmployeeRole;
   user_id: string;
+  email: string;
+}
+
+// Für Tauschanfragen: Admin gilt als Händler
+export function getSwapType(role: EmployeeRole): "assistent" | "händler" {
+  return role === "assistent" ? "assistent" : "händler";
+}
+
+export function canSwapWith(a: EmployeeRole, b: EmployeeRole): boolean {
+  return getSwapType(a) === getSwapType(b);
 }
 
 export interface Schedule {
