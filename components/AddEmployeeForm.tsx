@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { clsx } from "clsx";
-import { createEmployee, deleteEmployee, fetchEmployees } from "@/lib/api";
+import { createEmployee, deleteEmployee, fetchEmployees, updateEmployeeRole } from "@/lib/api";
 import type { Employee, EmployeeRole } from "@/types";
 
 interface AddEmployeeFormProps {
@@ -26,6 +26,7 @@ export function AddEmployeeForm({ onSuccess }: AddEmployeeFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   const loadEmployees = useCallback(async () => {
     setLoadingList(true);
@@ -59,6 +60,20 @@ export function AddEmployeeForm({ onSuccess }: AddEmployeeFormProps) {
       setError(err instanceof Error ? err.message : "Fehler beim Anlegen.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleRoleChange(emp: Employee, newRole: EmployeeRole) {
+    if (emp.role === newRole) return;
+    setUpdatingId(emp.id);
+    try {
+      await updateEmployeeRole(emp.id, newRole);
+      await loadEmployees();
+      onSuccess();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Fehler beim Aktualisieren.");
+    } finally {
+      setUpdatingId(null);
     }
   }
 
@@ -215,9 +230,25 @@ export function AddEmployeeForm({ onSuccess }: AddEmployeeFormProps) {
                   <p className="text-white text-sm font-medium truncate">{emp.name}</p>
                   <p className="text-white/30 text-xs truncate">{emp.email}</p>
                 </div>
-                <span className={clsx("text-xs font-semibold px-2.5 py-1 rounded-lg shrink-0", roleColor[emp.role])}>
-                  {emp.role === "admin" ? "Admin" : emp.role === "händler" ? "Händler" : "Assistent"}
-                </span>
+                {emp.role === "admin" ? (
+                  <span className={clsx("text-xs font-semibold px-2.5 py-1 rounded-lg shrink-0", roleColor[emp.role])}>
+                    Admin
+                  </span>
+                ) : (
+                  <select
+                    value={emp.role}
+                    onChange={(e) => handleRoleChange(emp, e.target.value as EmployeeRole)}
+                    disabled={updatingId === emp.id}
+                    className={clsx(
+                      "text-xs font-semibold px-2.5 py-1 rounded-lg shrink-0 border cursor-pointer focus:outline-none focus:ring-1 focus:ring-accent-blue/50",
+                      roleColor[emp.role],
+                      "border-transparent bg-transparent appearance-none"
+                    )}
+                  >
+                    <option value="assistent" className="bg-[#1c1c1e] text-white">Assistent</option>
+                    <option value="händler" className="bg-[#1c1c1e] text-white">Händler</option>
+                  </select>
+                )}
                 {emp.role !== "admin" && (
                   <button
                     onClick={() => handleDelete(emp)}

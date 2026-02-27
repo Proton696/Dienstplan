@@ -70,6 +70,18 @@ export async function createEmployee(params: {
   if (dbError) throw dbError;
 }
 
+export async function updateEmployeeRole(
+  employeeId: string,
+  role: EmployeeRole
+): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from("employees")
+    .update({ role })
+    .eq("id", employeeId);
+  if (error) throw error;
+}
+
 export async function deleteEmployee(employeeId: string): Promise<void> {
   const supabase = getSupabaseClient();
   const { error } = await supabase
