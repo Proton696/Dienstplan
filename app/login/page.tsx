@@ -2,19 +2,19 @@
 
 import { useState, useEffect, FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { signIn } from "@/lib/api";
-import { fetchEmployeesPublic } from "@/lib/api";
+import { signIn, fetchEmployeesPublic } from "@/lib/api";
 
 interface EmployeeOption {
   id: string;
   name: string;
-  email: string;
+  email: string | null;
 }
 
 export default function LoginPage() {
   const router = useRouter();
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
-  const [selectedEmail, setSelectedEmail] = useState("");
+  const [selectedEmployee, setSelectedEmployee] = useState<EmployeeOption | null>(null);
+  const [manualEmail, setManualEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -22,21 +22,37 @@ export default function LoginPage() {
 
   useEffect(() => {
     fetchEmployeesPublic()
-      .then(setEmployees)
+      .then((data) => setEmployees(data as EmployeeOption[]))
       .catch(() => {})
       .finally(() => setLoadingEmployees(false));
   }, []);
 
+  function handleNameSelect(e: React.ChangeEvent<HTMLSelectElement>) {
+    const emp = employees.find((x) => x.id === e.target.value) ?? null;
+    setSelectedEmployee(emp);
+    setManualEmail("");
+    setError(null);
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!selectedEmail) {
+    setError(null);
+
+    // E-Mail bestimmen: aus DB oder manuell eingegeben
+    const email = selectedEmployee?.email?.trim() || manualEmail.trim();
+
+    if (!selectedEmployee) {
       setError("Bitte wähle deinen Namen aus.");
       return;
     }
-    setError(null);
+    if (!email) {
+      setError("Bitte gib deine E-Mail-Adresse ein.");
+      return;
+    }
+
     setLoading(true);
     try {
-      await signIn(selectedEmail, password);
+      await signIn(email, password);
       router.push("/schedule");
     } catch (err: unknown) {
       setError(
@@ -46,6 +62,9 @@ export default function LoginPage() {
       setLoading(false);
     }
   }
+
+  // Hat der gewählte Mitarbeiter eine E-Mail hinterlegt?
+  const hasEmail = !!selectedEmployee?.email?.trim();
 
   return (
     <div className="min-h-screen bg-black flex items-center justify-center p-5 pt-safe">
@@ -61,18 +80,15 @@ export default function LoginPage() {
               <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01" />
             </svg>
           </div>
-          <h1 className="text-3xl font-semibold text-white tracking-tight">
-            Dienstplan
-          </h1>
-          <p className="text-sm text-white/40 mt-1">
-            Wähle deinen Namen und melde dich an
-          </p>
+          <h1 className="text-3xl font-semibold text-white tracking-tight">Dienstplan</h1>
+          <p className="text-sm text-white/40 mt-1">Wähle deinen Namen und melde dich an</p>
         </div>
 
         {/* Login Card */}
         <div className="glass rounded-3xl p-6 shadow-apple">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-3">
+
               {/* Name Dropdown */}
               <div>
                 <label className="block text-xs font-medium text-white/50 mb-1.5 uppercase tracking-wide">
@@ -80,9 +96,8 @@ export default function LoginPage() {
                 </label>
                 <div className="relative">
                   <select
-                    value={selectedEmail}
-                    onChange={(e) => setSelectedEmail(e.target.value)}
-                    required
+                    value={selectedEmployee?.id ?? ""}
+                    onChange={handleNameSelect}
                     disabled={loadingEmployees}
                     className="w-full bg-white/[0.07] border border-white/10 rounded-xl px-4 py-3 text-white text-base focus:outline-none focus:border-accent-blue/60 focus:bg-white/[0.09] transition-all appearance-none cursor-pointer disabled:opacity-50"
                   >
@@ -90,16 +105,11 @@ export default function LoginPage() {
                       {loadingEmployees ? "Lädt…" : "Name auswählen…"}
                     </option>
                     {employees.map((emp) => (
-                      <option
-                        key={emp.id}
-                        value={emp.email}
-                        className="bg-[#1c1c1e] text-white"
-                      >
+                      <option key={emp.id} value={emp.id} className="bg-[#1c1c1e] text-white">
                         {emp.name}
                       </option>
                     ))}
                   </select>
-                  {/* Dropdown-Pfeil */}
                   <div className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-white/30">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                       <polyline points="6 9 12 15 18 9" />
@@ -107,6 +117,24 @@ export default function LoginPage() {
                   </div>
                 </div>
               </div>
+
+              {/* E-Mail (nur wenn nicht in DB hinterlegt) */}
+              {selectedEmployee && !hasEmail && (
+                <div className="animate-fade-in">
+                  <label className="block text-xs font-medium text-white/50 mb-1.5 uppercase tracking-wide">
+                    E-Mail
+                  </label>
+                  <input
+                    type="email"
+                    value={manualEmail}
+                    onChange={(e) => setManualEmail(e.target.value)}
+                    placeholder="deine@email.de"
+                    required
+                    autoCapitalize="none"
+                    className="w-full bg-white/[0.07] border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/25 text-base focus:outline-none focus:border-accent-blue/60 transition-all"
+                  />
+                </div>
+              )}
 
               {/* Passwort */}
               <div>
@@ -119,7 +147,7 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   required
-                  className="w-full bg-white/[0.07] border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/25 text-base focus:outline-none focus:border-accent-blue/60 focus:bg-white/[0.09] transition-all"
+                  className="w-full bg-white/[0.07] border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/25 text-base focus:outline-none focus:border-accent-blue/60 transition-all"
                   autoComplete="current-password"
                 />
               </div>
@@ -138,7 +166,7 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              disabled={loading || loadingEmployees}
+              disabled={loading || loadingEmployees || !selectedEmployee}
               className="w-full bg-accent-blue text-white font-semibold py-3.5 rounded-xl text-base transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-apple-sm hover:bg-blue-500 mt-2"
             >
               {loading ? (
