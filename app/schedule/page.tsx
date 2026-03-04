@@ -1,0 +1,154 @@
+"use client";
+
+import { useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/hooks/useAuth";
+import { useSchedule } from "@/hooks/useSchedule";
+import { Navigation } from "@/components/Navigation";
+import { WeekNavigator } from "@/components/WeekNavigator";
+import { WeeklySchedule } from "@/components/WeeklySchedule";
+import { getWeekDays, nextWeek, prevWeek } from "@/lib/week";
+import { fetchMySwapRequests } from "@/lib/api";
+import { format } from "date-fns";
+import type { ShiftSwapRequest, ScheduleRow } from "@/types";
+
+export default function SchedulePage() {
+  const router = useRouter();
+  const { user, employee, loading: authLoading } = useAuth();
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [myRequests, setMyRequests] = useState<ShiftSwapRequest[]>([]);
+
+  const { rows, schedules, loading, error, refresh } = useSchedule(currentDate);
+  const weekDays = getWeekDays(currentDate);
+
+  // Auth guard — Admin direkt zum Admin-Dashboard
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace("/login");
+    } else if (!authLoading && employee?.role === "admin") {
+      router.replace("/admin");
+    }
+  }, [authLoading, user, employee, router]);
+
+  // Load own swap requests
+  useEffect(() => {
+    if (!employee) return;
+    fetchMySwapRequests(employee.id).then(setMyRequests).catch(() => {});
+  }, [employee]);
+
+  // Sortierung: eigene Zeile zuerst, dann nach übereinstimmender Schicht pro Tag
+  const sortedRows = useMemo(() => {
+    if (!employee || rows.length === 0) return rows;
+
+    const todayStr = format(new Date(), "yyyy-MM-dd");
+
+    // Meine Schicht heute ermitteln
+    const myTodayShift = schedules.find(
+      (s) => s.employee_id === employee.id && s.date === todayStr
+    )?.shift_type ?? null;
+
+    return [...rows].sort((a, b) => {
+      const aIsMe = a.employee.id === employee.id;
+      const bIsMe = b.employee.id === employee.id;
+
+      // Eigene Zeile immer zuerst
+      if (aIsMe) return -1;
+      if (bIsMe) return 1;
+
+      // Wenn heute eine Schicht vorhanden ist: gleiche Schicht bevorzugen
+      if (myTodayShift) {
+        const aShift = schedules.find(
+          (s) => s.employee_id === a.employee.id && s.date === todayStr
+        )?.shift_type ?? null;
+        const bShift = schedules.find(
+          (s) => s.employee_id === b.employee.id && s.date === todayStr
+        )?.shift_type ?? null;
+
+        const aMatches = aShift === myTodayShift ? -1 : 0;
+        const bMatches = bShift === myTodayShift ? -1 : 0;
+
+        if (aMatches !== bMatches) return aMatches - bMatches;
+      }
+
+      // Alphabetisch als Fallback
+      return a.employee.name.localeCompare(b.employee.name, "de");
+    });
+  }, [rows, schedules, employee]);
+
+  if (authLoading || !user) {
+    return <LoadingScreen />;
+  }
+
+  const pendingRequests = myRequests.filter((r) => r.status === "pending");
+
+  return (
+    <div className="min-h-screen bg-black">
+      <Navigation employee={employee} />
+
+      <main className="max-w-7xl mx-auto">
+        {/* Week Navigator */}
+        <WeekNavigator
+          currentDate={currentDate}
+          onPrev={() => setCurrentDate(prevWeek(currentDate))}
+          onNext={() => setCurrentDate(nextWeek(currentDate))}
+          onToday={() => setCurrentDate(new Date())}
+        />
+
+        {/* My pending swap requests banner */}
+        {pendingRequests.length > 0 && (
+          <div className="mx-4 mb-4 glass rounded-2xl px-4 py-3 flex items-center gap-3 border border-accent-orange/20 animate-fade-in">
+            <div className="w-2 h-2 rounded-full bg-accent-orange animate-pulse shrink-0" />
+            <p className="text-sm text-white/70">
+              <span className="text-white font-medium">
+                {pendingRequests.length} Tauschanfrage
+                {pendingRequests.length > 1 ? "n" : ""}
+              </span>{" "}
+              ausstehend · Warten auf Admin
+            </p>
+          </div>
+        )}
+
+        {/* Error state */}
+        {error && (
+          <div className="mx-4 mb-4 bg-accent-red/10 border border-accent-red/20 rounded-2xl px-4 py-3">
+            <p className="text-sm text-red-400">{error}</p>
+          </div>
+        )}
+
+        {/* Loading skeleton */}
+        {loading ? (
+          <ScheduleSkeleton />
+        ) : (
+          <WeeklySchedule
+            rows={sortedRows}
+            weekDays={weekDays}
+            currentEmployee={employee}
+            schedules={schedules}
+            onRefresh={refresh}
+          />
+        )}
+      </main>
+    </div>
+  );
+}
+
+function ScheduleSkeleton() {
+  return (
+    <div className="px-4 space-y-3">
+      {Array.from({ length: 8 }).map((_, i) => (
+        <div key={i} className="skeleton h-24 rounded-3xl" />
+      ))}
+    </div>
+  );
+}
+
+function LoadingScreen() {
+  return (
+    <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-10 h-10 border-2 border-white/10 border-t-accent-blue rounded-full animate-spin" />
+        <p className="text-white/30 text-sm">Lädt…</p>
+      </div>
+    </div>
+  );
+}
