@@ -117,7 +117,7 @@ export default function AdminPage() {
       </main>
 
       {/* Mobile Footer mit Logout */}
-      <footer className="md:hidden fixed bottom-0 left-0 right-0 pb-safe py-3 px-4 z-40">
+      <footer className="md:hidden fixed bottom-0 left-0 right-0 py-3 px-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] z-40">
         <button
           onClick={handleSignOut}
           className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-[#1c1c1e] text-white/60 hover:text-white hover:bg-[#2c2c2e] transition-colors font-medium text-sm"
